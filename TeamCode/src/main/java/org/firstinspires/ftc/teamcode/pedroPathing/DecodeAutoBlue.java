@@ -1,51 +1,56 @@
 package org.firstinspires.ftc.teamcode.pedroPathing;
 
-import static android.os.SystemClock.currentThreadTimeMillis;
-import static android.os.SystemClock.sleep;
-
 import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.BezierCurve;
 import com.pedropathing.geometry.BezierLine;
 import com.pedropathing.geometry.Pose;
-import com.pedropathing.paths.Path;
 import com.pedropathing.paths.PathChain;
 import com.pedropathing.util.Timer;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
-import  com.qualcomm.robotcore.eventloop.opmode.OpMode;
-import com.qualcomm.robotcore.hardware.CRServo;
+import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.hardware.DcMotor;
-import com.qualcomm.robotcore.hardware.DcMotorEx;
-import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
-import java.lang.Thread;
-
+/**
+ * Autonomous from LAST season's game (DECODE, 2025-2026), kept for reference.
+ * It drives a full cycle of paths and flashes the Headlight servo, but never
+ * runs the shooter, kicker or intake.
+ *
+ * Uses a state machine (pathState = the step we are on). The order of steps
+ * is 0, 1, 2, -1, 3, 4, 5, 6, 7, 8, 9, 10, 11.
+ *
+ * NOTE: in several steps, followPath() is called every loop while the robot
+ * is not busy, so the same path can start again. Check this before copying
+ * the pattern into a BIOBUZZ auto.
+ */
 @Autonomous
 public class DecodeAutoBlue extends OpMode {
     private Follower follower;
-    private Timer pathTimer, actionTimer, opmodeTimer;
+    private Timer pathTimer, opmodeTimer;
     private int pathState;
     private Servo Headlight;
     private DcMotor Shooter;
     private DcMotor Kicker;
     private DcMotor Intake;
-    private final Pose startPose = new Pose(55.504667444574096, 7.834889148191378, Math.toRadians(90)); // Start Pose of our robot.
-    private final Pose ShootPose = new Pose(60, 95, Math.toRadians(138)); // Start Pose of our robot.;
-    private final Pose pickup = new Pose(30, 96, Math.toRadians(180)); // Start Pose of our robot.;
-    private final Pose midpickup2 = new Pose(78, 70, Math.toRadians(180)); // Start Pose of our robot.;
-    private final Pose pickuptwo = new Pose(26, 70, Math.toRadians(180)); // Start Pose of our robot.;
-    private final Pose midpickup3 = new Pose(78, 50, Math.toRadians(180)); // Start Pose of our robot.;
-    private final Pose pickupthree = new Pose(26, 50, Math.toRadians(180)); // Start Pose of our robot.;
-    private final Pose Release = new Pose(20, 70, Math.toRadians(140)); // Start Pose of our robot.;
-    private final Pose MidRelease = new Pose(70, 74, Math.toRadians(180)); // Start Pose of our robot.;
-    private final Pose MidReleaseB = new Pose(37.67269544924156, 55, Math.toRadians(180)); // Start Pose of our robot.;
-    private final Pose ExitPose = new Pose(50, 80, Math.toRadians(180)); // Start Pose of our robot.;
+    // ---------- Field positions (x inches, y inches, heading) ----------
+    private final Pose startPose = new Pose(55.504667444574096, 7.834889148191378, Math.toRadians(90)); // where the robot starts
+    private final Pose ShootPose = new Pose(60, 95, Math.toRadians(138));
+    private final Pose pickup = new Pose(30, 96, Math.toRadians(180));
+    private final Pose midpickup2 = new Pose(78, 70, Math.toRadians(180));
+    private final Pose pickuptwo = new Pose(26, 70, Math.toRadians(180));
+    private final Pose midpickup3 = new Pose(78, 50, Math.toRadians(180));
+    private final Pose pickupthree = new Pose(26, 50, Math.toRadians(180));
+    private final Pose Release = new Pose(20, 70, Math.toRadians(140));
+    private final Pose MidRelease = new Pose(70, 74, Math.toRadians(180));
+    private final Pose MidReleaseB = new Pose(37.67269544924156, 55, Math.toRadians(180));
+    private final Pose ExitPose = new Pose(50, 80, Math.toRadians(180));
     private PathChain scorePreload,pickup1,Shoot1,pickup2,Shoot2,pickup3, ReleaseArtifacts, Reverse, Shoot3, Exit;
-    ElapsedTime shootTimer = new ElapsedTime();
+    // Seconds since the current step started (reset by some steps).
     ElapsedTime waitimer = new ElapsedTime();
 
 
+    /** Builds every path once in init(). */
     public void buildPaths() {
         scorePreload = follower.pathBuilder()
                 .addPath(new BezierLine(startPose, ShootPose))
@@ -88,9 +93,11 @@ public class DecodeAutoBlue extends OpMode {
                 .setLinearHeadingInterpolation(ShootPose.getHeading(), ExitPose.getHeading())
                 .build();
     }
+    /** The state machine: runs the current step, and moves on when it is done. */
     public void autonomousPathUpdate() {
         switch (pathState) {
             case 0:
+                // Drive to the shooting spot. Headlight on at 0.7 s.
                 if(!follower.isBusy()) {
                     follower.followPath(scorePreload, true);
                 }
@@ -135,6 +142,8 @@ public class DecodeAutoBlue extends OpMode {
                 waitimer.reset();
                 break;
             case 4:
+                // NOTE: the Headlight and timer checks are inside the
+                // isBusy() check, so they only run while the robot is stopped.
                 if(!follower.isBusy()) {
                     follower.followPath(Reverse, true);
                     if(waitimer.seconds() > 1.5){
@@ -157,8 +166,8 @@ public class DecodeAutoBlue extends OpMode {
                     follower.followPath(Reverse, true);
                 }
                 if(waitimer.seconds() > 4){
-                setPathState(7);
-                 }
+                    setPathState(7);
+                }
                 break;
             case 7:
                 if(!follower.isBusy()) {
@@ -199,6 +208,7 @@ public class DecodeAutoBlue extends OpMode {
         }
     }
 
+    /** Moves the state machine to a new step. */
     public void setPathState(int pState) {
         pathState = pState;
         pathTimer.resetTimer();
@@ -224,8 +234,6 @@ public class DecodeAutoBlue extends OpMode {
     /** This method is called once at the init of the OpMode. **/
     @Override
     public void init() {
-
-
         pathTimer = new Timer();
         opmodeTimer = new Timer();
         opmodeTimer.resetTimer();
@@ -237,9 +245,6 @@ public class DecodeAutoBlue extends OpMode {
         follower = Constants.createFollower(hardwareMap);
         buildPaths();
         follower.setStartingPose(startPose);
-
-
-
     }
 
     /** This method is called continuously after Init while waiting for "play". **/
@@ -255,7 +260,7 @@ public class DecodeAutoBlue extends OpMode {
         setPathState(0);
     }
 
-    /** We do not use this because everything should automatically disable **/
+    /** Nothing to do here: the SDK stops the motors when the OpMode ends. **/
     @Override
     public void stop() {
     }

@@ -1,57 +1,59 @@
 package org.firstinspires.ftc.teamcode.pedroPathing;
 
-import static android.os.SystemClock.currentThreadTimeMillis;
-import static android.os.SystemClock.sleep;
-
 import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.BezierCurve;
-import com.pedropathing.geometry.BezierLine;
 import com.pedropathing.geometry.Pose;
-import com.pedropathing.paths.Path;
 import com.pedropathing.paths.PathChain;
 import com.pedropathing.util.Timer;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
-import  com.qualcomm.robotcore.eventloop.opmode.OpMode;
-import com.qualcomm.robotcore.hardware.CRServo;
+import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.hardware.DcMotor;
-import com.qualcomm.robotcore.hardware.DcMotorEx;
-import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
-import java.lang.Thread;
-
+/**
+ * Autonomous from the start spot at (55, 8): shoot the preloads, then park.
+ *
+ * Uses a state machine like HiveUpAuto (pathState = the step we are on).
+ *
+ * NOTE: the name says "HiveDown" but it is in the "HiveUp" group and starts
+ * at the HiveUp start spot (55, 8). Check which side this is for.
+ */
 @Autonomous(group = "HiveUp")
 public class HiveDownParkAuto extends OpMode {
     private Follower follower;
-    private Timer pathTimer, actionTimer, opmodeTimer;
+    private Timer pathTimer, opmodeTimer;
     private int pathState;
-    private Servo Headlight;
+    private Servo Headlight;   // NOTE: set up but not used in this auto
     private DcMotor Shooter;
     private DcMotor Kicker;
     private DcMotor Intake;
-    private final Pose startPose = new Pose(55, 8, Math.toRadians(270)); // Start Pose of our robot.
-    private final Pose parkmid = new Pose(55, 20, Math.toRadians(270)); // Start Pose of our robot.;
 
-    private final Pose park = new Pose(99, 36, Math.toRadians(270)); // Start Pose of our robot.;
-
-
+    // ---------- Field positions (x inches, y inches, heading) ----------
+    private final Pose startPose = new Pose(55, 8, Math.toRadians(270));   // where the robot starts
+    private final Pose parkmid = new Pose(55, 20, Math.toRadians(270));    // control point toward park
+    private final Pose park = new Pose(99, 36, Math.toRadians(270));       // park spot
 
     private PathChain park1;
-    ElapsedTime shootTimer = new ElapsedTime();
+
+    // Seconds since PLAY (reset again when the park drive starts).
     ElapsedTime waitimer = new ElapsedTime();
 
-
+    /** Builds the path once in init(). */
     public void buildPaths() {
         park1 = follower.pathBuilder()
-                .addPath(new BezierCurve(startPose, parkmid ,park))
+                .addPath(new BezierCurve(startPose, parkmid, park))
                 .setLinearHeadingInterpolation(startPose.getHeading(), park.getHeading())
                 .build();
     }
+
+    /** The state machine: runs the current step, and moves on when it is done. */
     public void autonomousPathUpdate() {
         switch (pathState) {
             case 0:
-                    Shooter.setPower(-0.62);
+                // SHOOT PRELOADS (timed)
+                // Shooter on right away. 5 s: feed balls. 7 s: go park.
+                Shooter.setPower(-0.62);
                 if (waitimer.seconds() > 5) {
                     Intake.setPower(0.6);
                     Kicker.setPower(-0.6);
@@ -62,6 +64,8 @@ public class HiveDownParkAuto extends OpMode {
                 }
                 break;
             case 1:
+                // PARK: turn everything off and drive to the park spot.
+                // After this, state 2 does nothing, so the robot waits there.
                 Shooter.setPower(0);
                 Kicker.setPower(0);
                 Intake.setPower(0);
@@ -74,19 +78,21 @@ public class HiveDownParkAuto extends OpMode {
         }
     }
 
+    /** Moves the state machine to a new step. */
     public void setPathState(int pState) {
         pathState = pState;
         pathTimer.resetTimer();
     }
-    /** This is the main loop of the OpMode, it will run repeatedly after clicking "Play". **/
+
+    /** Runs over and over after PLAY is pressed. */
     @Override
     public void loop() {
 
-        // These loop the movements of the robot, these must be called continuously in order to work
+        // Pedro must update every loop to drive paths and track position.
         follower.update();
         autonomousPathUpdate();
 
-        // Feedback to Driver Hub for debugging
+        // Feedback on the Driver Hub for debugging
         telemetry.addData("path state", pathState);
         telemetry.addData("x", follower.getPose().getX());
         telemetry.addData("y", follower.getPose().getY());
@@ -96,7 +102,7 @@ public class HiveDownParkAuto extends OpMode {
         telemetry.update();
     }
 
-    /** This method is called once at the init of the OpMode. **/
+    /** Runs once when INIT is pressed: find hardware and build the paths. */
     @Override
     public void init() {
         pathTimer = new Timer();
@@ -112,15 +118,13 @@ public class HiveDownParkAuto extends OpMode {
         follower = Constants.createFollower(hardwareMap);
         buildPaths();
         follower.setStartingPose(startPose);
-
     }
 
-    /** This method is called continuously after Init while waiting for "play". **/
+    /** Runs over and over after INIT, while waiting for PLAY. */
     @Override
     public void init_loop() {}
 
-    /** This method is called once at the start of the OpMode.
-     * It runs all the setup actions, including building paths and starting the path system **/
+    /** Runs once when PLAY is pressed: start the timers at step 0. */
     @Override
     public void start() {
         waitimer.reset();
@@ -128,9 +132,8 @@ public class HiveDownParkAuto extends OpMode {
         setPathState(0);
     }
 
-    /** We do not use this because everything should automatically disable **/
+    /** Nothing to do here: the SDK stops the motors when the OpMode ends. */
     @Override
     public void stop() {
     }
 }
-
